@@ -1,25 +1,23 @@
-from pydantic import BaseModel, Field, EmailStr  # pyright: ignore[reportMissingImports]
+from pydantic import BaseModel, ConfigDict, Field, EmailStr  # pyright: ignore[reportMissingImports]
 from datetime import datetime
-from typing import Optional, List
-from app.models.invoice_model import UserRole, InvoiceStatus, User
-from app.core.config import Base
+from typing import ClassVar
+from app.models.invoice_model import UserRole, InvoiceStatus
 
 
 class UserCreate(BaseModel):
     email:      EmailStr
     password:   str = Field(min_length=6, description="Password must be at least 6 characters long")
-    full_name:  Optional[str] = None
+    full_name:  str | None = None
     role:       UserRole = UserRole.ACCOUNTANT
 
 class UserResponse(BaseModel):
     id: int
     email: str
-    full_name: Optional[str] = None
+    full_name: str | None = None
     role: UserRole
     is_active: bool
     created_at: datetime
-    class Config:
-        from_attributes = True
+    model_config: ClassVar[ConfigDict] = ConfigDict(from_attributes=True)
 
 class Token(BaseModel):
     access_token: str
@@ -43,63 +41,59 @@ class UserInDB(UserCreate):
 
 class VendorCreate(BaseModel):
     name:          str
-    email:         Optional[str] = None
-    gst_number:    Optional[str] = None
+    email:         str | None = None
+    gst_number:    str | None = None
     payment_terms: int = 30
 
 class VendorResponse(BaseModel):
     id:            int
     name:          str
-    email:         Optional[str]
-    gst_number:    Optional[str]
+    email:         str | None
+    gst_number:    str | None
     payment_terms: int
     is_active:     bool
-    class Config:
-        from_attributes = True
+    model_config: ClassVar[ConfigDict] = ConfigDict(from_attributes=True)
 
 
 # ── Invoice ───────────────────────────────────────────────────────────────────
 
 class InvoiceLineItemResponse(BaseModel):
     id:          int
-    description: Optional[str]
+    description: str | None
     quantity:    float
     unit_price:  float
     total_price: float
     line_number: int
-    class Config:
-        from_attributes = True
+    model_config: ClassVar[ConfigDict] = ConfigDict(from_attributes=True)
 
 class InvoiceResponse(BaseModel):
     id:                  int
     file_name:   str
     file_size_bytes:     int
     status:              InvoiceStatus
-    invoice_number:      Optional[str]
-    invoice_date:        Optional[str]
-    vendor_name:         Optional[str]
-    subtotal:            Optional[float]
-    tax_amount:          Optional[float]
-    total_amount:        Optional[float]
-    currency:            Optional[str]
-    anomaly_report:      Optional[str]
-    processing_time_ms:  Optional[int]
+    invoice_number:      str | None
+    invoice_date:        str | None
+    vendor_name:         str | None
+    subtotal:            float | None
+    tax_amount:          float | None
+    total_amount:        float | None
+    currency:            str | None
+    anomaly_report:      str | None
+    processing_time_ms:  int | None
     uploaded_at:         datetime
-    processed_at:        Optional[datetime]
-    line_items:          List[InvoiceLineItemResponse] = []
-    class Config:
-        from_attributes = True
+    processed_at:        datetime | None
+    line_items:          list[InvoiceLineItemResponse] = []
+    model_config: ClassVar[ConfigDict] = ConfigDict(from_attributes=True)
 
 class InvoiceListResponse(BaseModel):
     """Lightweight version for listing — no line_items or raw_text"""
     id:                int
     original_filename: str
     status:            InvoiceStatus
-    vendor_name:       Optional[str]
-    total_amount:      Optional[float]
+    vendor_name:       str | None
+    total_amount:      float | None
     uploaded_at:       datetime
-    class Config:
-        from_attributes = True
+    model_config: ClassVar[ConfigDict] = ConfigDict(from_attributes=True)
 
 
 # ── Processing Log ────────────────────────────────────────────────────────────
@@ -108,10 +102,9 @@ class ProcessingLogResponse(BaseModel):
     id:         int
     step:       str
     status:     str
-    message:    Optional[str]
+    message:    str | None
     created_at: datetime
-    class Config:
-        from_attributes = True
+    model_config: ClassVar[ConfigDict] = ConfigDict(from_attributes=True)
 
 
 # ── Analytics ─────────────────────────────────────────────────────────────────
