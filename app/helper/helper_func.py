@@ -3,6 +3,8 @@ from sqlalchemy import func, select, label
 from fastapi import UploadFile
 from fastapi import HTTPException, status
 from app.models.invoice_model import InvoiceLineItem, Vendor, Invoice
+from app.core.config import get_ai_response
+from langchain_core.prompts import PromptTemplate
 from loguru import logger
 
 MAX_FILE_SIZE_IN_BYTES = 10 * 1024 * 1024
@@ -65,7 +67,7 @@ def validate_line_items(db, invoice):
 def check_duplicate(invoice, db):
     if not invoice.invoice_number: # pyright: ignore[reportGeneralTypeIssues]
         return {
-            "passed":  True,   # can't check without a number — give benefit of doubt
+            "passed":  False,   # can't check without a number — give benefit of doubt
             "message": "Invoice number not found — duplicate check skipped.",
         }
     duplicate_invoice = db.query(Invoice).filter(Invoice.invoice_number==invoice.invoice_number,
@@ -92,29 +94,164 @@ def run_validation_agent(db, invoice):
     line_item_result = validate_line_items(db, invoice)
     invoice_duplication_check = check_duplicate(invoice, db)
     flags = []
+    all_failed = 0
     if not vendor_result["passed"]:
         flags.append(vendor_result["message"])
+        all_failed+=1
     if not line_item_result["passed"]:
         flags.append(line_item_result["message"])
+        all_failed+=1
     if not invoice_duplication_check["passed"]:
         flags.append(invoice_duplication_check["message"])
-    all_flags = 0
-    all_passed = len(flags)
+        all_failed+=1
     logger.info(
         f"Validation Agent: invoice={invoice.id} "
         f"vendor={'OK' if vendor_result['passed'] else 'FAIL'} "
         f"total={'OK' if line_item_result['passed'] else 'FAIL'} "
         f"duplicate={'OK' if invoice_duplication_check['passed'] else 'FAIL'} "
-        f"result={'PASSED' if all_passed else 'FLAGGED'}"
+        f"result={'PASSED' if not all_failed else 'FLAGGED'}"
     )
 
     return {
-        "all_passed": all_passed,
+        "all_failed": all_failed,
         "checks": {
             "vendor":     vendor_result,
             "total":      line_item_result,
             "duplicate":  invoice_duplication_check,
         },
+        "invoice_id": invoice.id,
         "vendor_id": vendor_result["vendor_id"],
+        "vendor_name": invoice.vendor_name,
         "flags": flags
     }
+
+def build_invoice_data_string(invoice):
+    return (
+        f"Invoice Number: {invoice.invoice_number or 'Not found'}\n"
+        f"Vendor Name: {invoice.vendor_name or 'Not found'}\n"
+        f"Invoice Date: {invoice.invoice_date or 'Not found'}\n"
+        f"Subtotal: INR {invoice.subtotal:,.2f}" if invoice.subtotal else "Subtotal: Not found\n"
+        f"Tax Amount: INR {invoice.tax_amount:,.2f}" if invoice.tax_amount else "Tax Amount: Not found\n"
+        f"Total Amount: INR {invoice.total_amount:,.2f}" if invoice.total_amount else "Total Amount: Not found\n"
+        f"Currency: {invoice.currency or 'INR'}\n"
+        f"Line Items Count: {len(invoice.line_items)}"
+    )
+
+def build_validation_string(validation_result):
+    checks = validation_result.get("checks", {})
+    print("***************************************")
+    print("***************************************")
+    print("Checks",checks)
+    print("***************************************")
+    print("***************************************")
+    vendor_check = checks.get("vendor", {})
+    print("***************************************")
+    print("***************************************")
+    print("vendor Check",vendor_check)
+    print("***************************************")
+    print("***************************************")
+    lines = []
+    lines.append(
+        f"Vendor Check - {'Passes' if vendor_check.get('passed') else 'Failed'}"
+        f" - {vendor_check.get('message', '')}"
+    )
+
+    total_check = checks.get("total", {})
+    lines.append(
+        f"Total Amount Check: {'PASSED' if total_check.get('passed') else 'FAILED'} "
+        f"— {total_check.get('message', '')}"
+    )
+
+    duplicate_check = checks.get("duplicate", {})
+    lines.append(
+        f"Duplicate Check: {'PASSED' if duplicate_check.get('passed') else 'FAILED'} "
+        f"— {duplicate_check.get('message', '')}"
+    )
+
+    flags = validation_result.get("flags", [])
+
+    if flags:
+        lines.append(f"Total Issues Found: {len(flags)}")
+    else:
+        lines.append("No issues found. All checks passed.")
+    print("***************************************")
+    print("***************************************")
+    print("Lines",lines)
+    print("***************************************")
+    print("***************************************")
+    return "\n".join(lines)
+
+def run_summary_agent(invoice, validation_result: dict):
+    invoice_data_str = build_invoice_data_string(invoice)
+    validation_str   = build_validation_string(validation_result)
+    status_str       = "FLAGGED — requires manual review" if validation_result["all_failed"] else "CLEARED — approved for payment"
+    
+    # You are a professional accounts assistant writing an invoice audit report.
+    #         Write a clear, concise paragraph (4-6 sentences) summarising this invoice
+    #         and its validation results. Be factual and professional.
+    
+    
+    SUMMARY_PROMPT = PromptTemplate(
+        input_variables=["invoice_data", "validation_summary", "status"],
+        template="""
+            You are a professional accounts assistant writing an invoice audit report.
+            Write a clear, concise paragraph (4-6 sentences) summarising this invoice
+            and its validation results. Be factual and professional.
+            Return ONLY the paragraph — no headings, no bullet points, no extra text.
+
+            Invoice details:
+            {invoice_data}
+
+            Validation results:
+            {validation_summary}
+
+            Overall status: {status}
+
+            Write the audit report paragraph:
+            """
+            )
+    prompt = SUMMARY_PROMPT.format(
+            invoice_data        = invoice_data_str,
+            validation_summary  = validation_str,
+            status              = status_str,
+        )
+    # Remove any accidental prompt echo from the LLM response
+    # Some models repeat the last line of the prompt before answering
+    try:
+        response = get_ai_response(prompt)
+        print("***************************************")
+        print("***************************************")
+        print("AI Response: ", response)
+        print("***************************************")
+        print("***************************************")
+        logger.info(f"Summary Agent: generating report for invoice {invoice.id}...")
+        if response: # pyright: ignore[reportOperatorIssue]
+            response = response.strip()
+            logger.info(f"Summary Agent: report generated ({len(response)} chars)")
+            return response
+    except Exception as e:
+        # Fallback — template-based report if LLM fails
+        # This ensures invoice.anomaly_report is never left empty
+        logger.error(f"Summary Agent: LLM failed — using template fallback. Error: {e}")
+        return fallback_report(invoice, validation_result)
+    
+def fallback_report(invoice, validation_result):
+    """
+    Template-based fallback report used when LLM API is unavailable.
+    No AI — just Python string formatting.
+    Ensures anomaly_report is always filled even if HuggingFace is down.
+    """
+    flags  = validation_result.get("flags", [])
+    status = "flagged for manual review" if flags else "cleared for payment"
+    report = (
+        f"Invoice {invoice.invoice_number or 'N/A'} from "
+        f"{invoice.vendor_name or 'unknown vendor'} "
+        f"dated {invoice.invoice_date or 'unknown date'} "
+        f"for INR {invoice.total_amount:,.2f} has been processed and {status}. "
+    )
+    if flags:
+        report += f"{len(flags)} issue(s) detected: "
+        report += " | ".join(flags)
+    else:
+        report += "All validation checks passed. Vendor verified, amounts balanced, no duplicates found."
+    return report

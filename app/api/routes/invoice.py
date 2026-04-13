@@ -1,10 +1,8 @@
 import os
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
-from huggingface_hub import try_to_load_from_cache
 from app.core.config import get_db, get_ai_response
 from app.core.app_security import get_current_user
-from pydantic import ValidationError
 from sqlalchemy.orm import Session
 from app.models.invoice_model import Invoice, InvoiceLineItem, InvoiceStatus, ProcessingLog, User
 from app.schemas.invoice_schema import InvoiceResponse
@@ -16,7 +14,6 @@ from datetime import datetime, timezone
 import time
 import json
 import re
-
 
 MAX_FILE_SIZE_IN_BYTES = 10 * 1024 * 1024
 PDF_MAGIC_BYTES = b'\x25\x50\x44\x46'
@@ -79,7 +76,6 @@ async def process_invoice(
     _current_user: Annotated[User, Depends(get_current_user)],
     invoice_id: int
 ):
-
     invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
     if invoice is None:
         raise HTTPException(
@@ -90,7 +86,6 @@ async def process_invoice(
     assert pdf_path is not None  # validate_file rejects missing filename
     if not pdf_path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Invoice PDF with id {invoice_id} not found.")
-    
     full_text = ""
     with pdfplumber.open(pdf_path) as pdf:
         start_time = time.time()
@@ -148,7 +143,6 @@ async def summerize_invoice(
         Here is the invoice text:
         {raw_text[:1000] if raw_text else "No text available"}
         Please summerize the invoice in a concise manner.
-
         Return this exact JSON structure:
             {{
                 "invoice_number": "string or null",
@@ -186,6 +180,7 @@ async def summerize_invoice(
         )
     if clean_response:
         line_items_len = 0
+        # print(json.loads(clean_response))
         data = json.loads(clean_response)  # pyright: ignore[reportAny]
         invoice.invoice_number = data['invoice_number']
         invoice.invoice_date = data['invoice_date']
@@ -204,7 +199,6 @@ async def summerize_invoice(
                 line_number=i,
             )
             db.add(new_line_item)
-
         processing_log = ProcessingLog(
             invoice_id=invoice.id,
             step="EXTRACTION_AGENT",
@@ -216,7 +210,6 @@ async def summerize_invoice(
         db.add(processing_log)
         db.commit()
         db.refresh(invoice)
-        
         return invoice
     else:
         raise HTTPException(status_code=500, detail="The AI failed to generate a valid JSON summary.")

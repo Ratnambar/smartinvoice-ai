@@ -30,19 +30,6 @@ def get_db():
         yield db
     finally:
         db.close()
-# def db_connection():
-#     try:
-#         with engine.connect() as connection:
-#             result = connection.execute(text("SELECT version();"))
-#             value = result.scalar()
-#             if value:
-#                 print(f"Connected to the database")
-#             else:
-#                 print("Connected but no version found")
-#     except Exception as e:
-#         print(f"Error connecting to the database: {e}")
-
-# db_connection()
 
 hf_token = os.getenv('HF_TOKEN')
 client = InferenceClient(api_key=hf_token)
@@ -52,6 +39,7 @@ def get_ai_response(prompt: str) -> str | None:
     response = client.chat_completion(
         model="meta-llama/Llama-3.1-8B-Instruct", 
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=500
+        temperature=0.1,
+        max_tokens=300
     )
     return response.choices[0].message.content

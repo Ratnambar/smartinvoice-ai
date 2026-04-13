@@ -1,21 +1,18 @@
 from datetime import timedelta
 from typing import Annotated
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-
 from app.core.app_security import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     authenticate_user,
     create_access_token,
     get_current_active_user,
-    get_password_hash,
-    verify_password
+    get_password_hash
 )
 from app.models.invoice_model import User
 from app.core.config import get_db
-from app.schemas.invoice_schema import Token, UserCreate, UserResponse, TokenResponse
+from app.schemas.invoice_schema import UserCreate, UserResponse, TokenResponse
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -35,9 +32,6 @@ async def register(payload: UserCreate, db: Annotated[Session, Depends(get_db)])
     db.commit()
     db.refresh(new_user)
     return new_user
-
-
-
 
 @router.post("/token", response_model=TokenResponse, summary="OAuth2 login (token endpoint)")
 async def login_for_access_token(
