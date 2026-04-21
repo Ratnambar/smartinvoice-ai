@@ -5,7 +5,7 @@ from app.core.config import get_db
 from app.core.app_security import get_current_user
 from sqlalchemy.orm import Session
 from app.models.invoice_model import Invoice, InvoiceStatus, ProcessingLog, User
-from app.schemas.invoice_schema import InvoiceResponse
+from app.schemas.invoice_schema import InvoiceResponse, ProcessingLogResponse
 from app.workers.tasks import process_invoice_task
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -190,6 +190,24 @@ async def get_invoice(
         )
 
     return invoice
+
+
+@router.get("/{invoice_id}/logs", response_model=list[ProcessingLogResponse], status_code=status.HTTP_200_OK, 
+            summary="Get processing logs of Invoice")
+async def get_invoice_logs(
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
+    invoice_id: int,
+):
+    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not invoice:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Invoice with id {invoice_id} not found.",
+        )
+    logs = db.query(ProcessingLog).filter(ProcessingLog.invoice_id == invoice_id).order_by(ProcessingLog.created_at.asc()).all()
+    return logs
+
 
 # @router.post("/{invoice_id/summerize", status_code=status.HTTP_200_OK, summary="Summerize the invoice")
 # async def summerize_invoice(

@@ -196,7 +196,7 @@ def _process_invoice_task(self: Task, invoice_id: int) -> str | None:
 
 
 _task_factory = cast(
-    Callable[..., Callable[[Callable[..., object]], Task]],
+    Callable[..., Callable[[Callable[..., str | None]], Task]],
     getattr(celery_app, "task"),
 )
 process_invoice_task: Task = _task_factory(
