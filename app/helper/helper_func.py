@@ -1,5 +1,7 @@
+from typing import TypedDict, cast
+
 from sqlalchemy.orm import Session
-from sqlalchemy import func, select, label
+from sqlalchemy import func, select
 from fastapi import UploadFile
 from fastapi import HTTPException, status
 from app.models.invoice_model import InvoiceLineItem, Vendor, Invoice
@@ -8,6 +10,37 @@ from langchain_core.prompts import PromptTemplate
 from loguru import logger
 
 MAX_FILE_SIZE_IN_BYTES = 10 * 1024 * 1024
+
+
+class VendorCheckResult(TypedDict):
+    passed: bool
+    vendor_id: int | None
+    message: str
+
+
+class AmountCheckResult(TypedDict):
+    passed: bool
+    message: str
+
+
+class DuplicateCheckResult(TypedDict):
+    passed: bool
+    message: str
+
+
+class ValidationChecks(TypedDict):
+    vendor: VendorCheckResult
+    total: AmountCheckResult
+    duplicate: DuplicateCheckResult
+
+
+class ValidationAgentResult(TypedDict):
+    all_failed: int
+    checks: ValidationChecks
+    invoice_id: int
+    vendor_id: int | None
+    vendor_name: str | None
+    flags: list[str]
 
 def validate_file(db: Session, vendor_id: int, file: UploadFile):
     vendor = db.query(Vendor).filter(Vendor.id == vendor_id).first()
@@ -21,8 +54,7 @@ def validate_file(db: Session, vendor_id: int, file: UploadFile):
         raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail="File size exceeds the maximum allowed size of 10MB.")
     return file
 
-
-def validate_vendor(db, vendor_name):
+def validate_vendor(db: Session, vendor_name: str | None) -> VendorCheckResult:
     if not vendor_name:
         return {
             "passed": False,
@@ -38,11 +70,11 @@ def validate_vendor(db, vendor_name):
         }
     return {
         "passed": True,
-        "vendor_id": vendor.id,
+        "vendor_id": cast(int, cast(object, vendor.id)),
         "message": f"Vendor with id {vendor.id} found."
     }
 
-def validate_line_items(db, invoice):
+def validate_line_items(db: Session, invoice: Invoice) -> AmountCheckResult:
     stmt = select(  # pyright: ignore[reportUnknownVariableType]
         InvoiceLineItem.invoice_id,
         func.sum(InvoiceLineItem.total_price).label('total_price')  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
@@ -50,21 +82,21 @@ def validate_line_items(db, invoice):
     rows = db.execute(stmt).all()  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
     total_price = 0
     total_price = [row[1] for row in rows if row[0] == invoice.id][0]
-    if invoice.total_amount - total_price == 0:
+    if invoice.total_amount - (invoice.tax_amount + total_price) == 0:
         return {
             "passed": True,
-            "message": f"Inline Items {total_price} is matching with Invoice {invoice.total_amount}. Verified."
+            "message": f"Inline Items {total_price + invoice.tax_amount} is matching with Invoice {invoice.total_amount}. Verified."
         }
     else:
         return {
             "passed": False,
-            "message": f"MISMATCH: Line items sum to INR {total_price:,.2f} "
+            "message": f"MISMATCH: Line items sum to INR {(total_price + invoice.tax_amount):,.2f} "
                        f"but invoice total states INR {invoice.total_amount:,.2f}. "
-                       f"Discrepancy of INR {abs(invoice.total_amount - total_price):,.2f}. "
+                       f"Discrepancy of INR {abs(invoice.total_amount - (invoice.tax_amount + total_price)):,.2f}. "
                        f"Do not process payment until resolved.",
         }
 
-def check_duplicate(invoice, db):
+def check_duplicate(invoice: Invoice, db: Session) -> DuplicateCheckResult:
     if not invoice.invoice_number: # pyright: ignore[reportGeneralTypeIssues]
         return {
             "passed":  False,   # can't check without a number — give benefit of doubt
@@ -84,16 +116,14 @@ def check_duplicate(invoice, db):
         return {
             "passed": True,
             "message": f"Invoice number '{invoice.invoice_number}' is unique. No duplicates found.",
-        }
-    
+        }   
 
-def run_validation_agent(db, invoice):
+def run_validation_agent(db: Session, invoice: Invoice) -> ValidationAgentResult:
     logger.info(f"Validation Agent: starting checks for invoice {invoice.id}")
-
-    vendor_result = validate_vendor(db, invoice.vendor_name)
+    vendor_result = validate_vendor(db, cast(str | None, cast(object, invoice.vendor_name)))
     line_item_result = validate_line_items(db, invoice)
     invoice_duplication_check = check_duplicate(invoice, db)
-    flags = []
+    flags: list[str] = []
     all_failed = 0
     if not vendor_result["passed"]:
         flags.append(vendor_result["message"])
@@ -112,18 +142,24 @@ def run_validation_agent(db, invoice):
         f"result={'PASSED' if not all_failed else 'FLAGGED'}"
     )
 
-    return {
-        "all_failed": all_failed,
-        "checks": {
-            "vendor":     vendor_result,
-            "total":      line_item_result,
-            "duplicate":  invoice_duplication_check,
-        },
-        "invoice_id": invoice.id,
-        "vendor_id": vendor_result["vendor_id"],
-        "vendor_name": invoice.vendor_name,
-        "flags": flags
-    }
+    return cast(
+        ValidationAgentResult,
+        cast(
+            object,
+            {
+                "all_failed": all_failed,
+                "checks": {
+                    "vendor": vendor_result,
+                    "total": line_item_result,
+                    "duplicate": invoice_duplication_check,
+                },
+                "invoice_id": invoice.id,
+                "vendor_id": vendor_result["vendor_id"],
+                "vendor_name": invoice.vendor_name,
+                "flags": flags,
+            },
+        ),
+    )
 
 def build_invoice_data_string(invoice):
     return (
@@ -137,19 +173,9 @@ def build_invoice_data_string(invoice):
         f"Line Items Count: {len(invoice.line_items)}"
     )
 
-def build_validation_string(validation_result):
+def build_validation_string(validation_result: ValidationAgentResult) -> str:
     checks = validation_result.get("checks", {})
-    print("***************************************")
-    print("***************************************")
-    print("Checks",checks)
-    print("***************************************")
-    print("***************************************")
     vendor_check = checks.get("vendor", {})
-    print("***************************************")
-    print("***************************************")
-    print("vendor Check",vendor_check)
-    print("***************************************")
-    print("***************************************")
     lines = []
     lines.append(
         f"Vendor Check - {'Passes' if vendor_check.get('passed') else 'Failed'}"
@@ -174,14 +200,9 @@ def build_validation_string(validation_result):
         lines.append(f"Total Issues Found: {len(flags)}")
     else:
         lines.append("No issues found. All checks passed.")
-    print("***************************************")
-    print("***************************************")
-    print("Lines",lines)
-    print("***************************************")
-    print("***************************************")
     return "\n".join(lines)
 
-def run_summary_agent(invoice, validation_result: dict):
+def run_summary_agent(invoice: Invoice, validation_result: ValidationAgentResult) -> str | None:
     invoice_data_str = build_invoice_data_string(invoice)
     validation_str   = build_validation_string(validation_result)
     status_str       = "FLAGGED — requires manual review" if validation_result["all_failed"] else "CLEARED — approved for payment"
@@ -219,11 +240,6 @@ def run_summary_agent(invoice, validation_result: dict):
     # Some models repeat the last line of the prompt before answering
     try:
         response = get_ai_response(prompt)
-        print("***************************************")
-        print("***************************************")
-        print("AI Response: ", response)
-        print("***************************************")
-        print("***************************************")
         logger.info(f"Summary Agent: generating report for invoice {invoice.id}...")
         if response: # pyright: ignore[reportOperatorIssue]
             response = response.strip()
@@ -235,7 +251,7 @@ def run_summary_agent(invoice, validation_result: dict):
         logger.error(f"Summary Agent: LLM failed — using template fallback. Error: {e}")
         return fallback_report(invoice, validation_result)
     
-def fallback_report(invoice, validation_result):
+def fallback_report(invoice: Invoice, validation_result: ValidationAgentResult) -> str:
     """
     Template-based fallback report used when LLM API is unavailable.
     No AI — just Python string formatting.

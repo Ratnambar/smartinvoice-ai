@@ -82,6 +82,7 @@ class InvoiceResponse(BaseModel):
     processing_time_ms:  int | None
     uploaded_at:         datetime
     processed_at:        datetime | None
+    webhook_url:         str | None = None
     line_items:          list[InvoiceLineItemResponse] = []
     model_config: ClassVar[ConfigDict] = ConfigDict(from_attributes=True)
 
