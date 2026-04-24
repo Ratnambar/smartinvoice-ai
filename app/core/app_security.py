@@ -22,17 +22,11 @@ DUMMY_HASH = password_hash.hash("dummypassword")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
 
-def fake_hash_password(password: str):
-    return "fakehashed" + password
-
 def verify_password(plain_password, hashed_password):
     return password_hash.verify(plain_password, hashed_password)
 
 def get_password_hash(password):
     return password_hash.hash(password)
-
-def fake_decode_token(token):
-    return get_user(get_db(), token)
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()

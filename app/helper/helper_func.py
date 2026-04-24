@@ -76,12 +76,12 @@ def validate_vendor(db: Session, vendor_name: str | None) -> VendorCheckResult:
 
 def validate_line_items(db: Session, invoice: Invoice) -> AmountCheckResult:
     stmt = select(  # pyright: ignore[reportUnknownVariableType]
-        InvoiceLineItem.invoice_id,
         func.sum(InvoiceLineItem.total_price).label('total_price')  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
-    ).group_by(InvoiceLineItem.invoice_id)
-    rows = db.execute(stmt).all()  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
-    total_price = 0
-    total_price = [row[1] for row in rows if row[0] == invoice.id][0]
+    ).where(InvoiceLineItem.invoice_id == invoice.id)
+    
+    result = db.execute(stmt).scalar()
+    total_price = float(result) if result is not None else 0.0
+
     if invoice.total_amount - (invoice.tax_amount + total_price) == 0:
         return {
             "passed": True,
