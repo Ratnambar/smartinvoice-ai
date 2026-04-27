@@ -1,11 +1,15 @@
+import os
 import sys
 
 from celery import Celery
 
+_redis = os.environ.get("CELERY_BROKER_URL") or os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+_result = os.environ.get("CELERY_RESULT_BACKEND", _redis)
+
 celery_app = Celery(
     "smartinvoice",
-    broker= "redis://localhost:6379/0",
-    backend= "redis://localhost:6379/0"
+    broker=_redis,
+    backend=_result,
 )
 
 celery_app.conf.update(

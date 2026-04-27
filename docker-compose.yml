@@ -1,0 +1,72 @@
+# version: '3.9'
+
+services:
+  api:
+    build: .
+    container_name: smartinvoiceai
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - invoice_uploads:/app/data/invoices
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${postgres_user}:${postgres_password}@db:5432/${postgres_database}
+      REDIS_URL:    redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      postgres_host: db
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    restart: on-failure
+
+  db:
+    image: postgres:15-alpine
+    container_name: smartinvoiceai_db
+    environment:
+      POSTGRES_USER:     ${postgres_user}
+      POSTGRES_PASSWORD: ${postgres_password}
+      POSTGRES_DB:       ${postgres_database}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+    restart: on-failure
+  redis:
+    image: redis:7-alpine
+    container_name: smartinvoice_redis
+    ports:
+      - "6379:6379"
+    restart: on-failure
+
+  celery_worker:
+    build: .
+    container_name: smartinvoice_celery
+    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=2
+    volumes:
+      - .:/app
+      - invoice_uploads:/app/data/invoices
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${postgres_user}:${postgres_password}@db:5432/${postgres_database}
+      REDIS_URL:    redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      postgres_host: db
+    depends_on:
+      - db
+      - redis
+    restart: on-failure
+volumes:
+  pgdata:
+  invoice_uploads:

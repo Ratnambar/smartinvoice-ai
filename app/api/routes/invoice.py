@@ -16,7 +16,7 @@ from app.helper.helper_func import validate_file
 
 MAX_FILE_SIZE_IN_BYTES = 10 * 1024 * 1024
 PDF_MAGIC_BYTES = b'\x25\x50\x44\x46'
-UPLOAD_DIR = "E:/all-Project/smartInvoice/smartinvoice-ai/data/invoices"
+UPLOAD_DIR = "/app/data/invoices"
 
 limiter = Limiter(key_func=get_remote_address)
 

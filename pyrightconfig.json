@@ -1,4 +1,5 @@
 {
   "venvPath": ".",
-  "venv": "env"
+  "venv": "env",
+  "reportUnusedParameter": "none"
 }
