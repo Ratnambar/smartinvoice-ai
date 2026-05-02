@@ -1,5 +1,4 @@
 from typing import TypedDict, cast
-
 from sqlalchemy.orm import Session
 from sqlalchemy import func, select
 from fastapi import UploadFile
@@ -42,6 +41,7 @@ class ValidationAgentResult(TypedDict):
     vendor_name: str | None
     flags: list[str]
 
+
 def validate_file(db: Session, vendor_id: int, file: UploadFile):
     vendor = db.query(Vendor).filter(Vendor.id == vendor_id).first()
     if not vendor:
@@ -53,6 +53,7 @@ def validate_file(db: Session, vendor_id: int, file: UploadFile):
     if file.size is not None and file.size > MAX_FILE_SIZE_IN_BYTES:
         raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail="File size exceeds the maximum allowed size of 10MB.")
     return file
+
 
 def validate_vendor(db: Session, vendor_name: str | None) -> VendorCheckResult:
     if not vendor_name:
@@ -73,6 +74,7 @@ def validate_vendor(db: Session, vendor_name: str | None) -> VendorCheckResult:
         "vendor_id": cast(int, cast(object, vendor.id)),
         "message": f"Vendor with id {vendor.id} found."
     }
+
 
 def validate_line_items(db: Session, invoice: Invoice) -> AmountCheckResult:
     stmt = select(  # pyright: ignore[reportUnknownVariableType]
@@ -96,6 +98,7 @@ def validate_line_items(db: Session, invoice: Invoice) -> AmountCheckResult:
                        f"Do not process payment until resolved.",
         }
 
+
 def check_duplicate(invoice: Invoice, db: Session) -> DuplicateCheckResult:
     if not invoice.invoice_number: # pyright: ignore[reportGeneralTypeIssues]
         return {
@@ -117,6 +120,7 @@ def check_duplicate(invoice: Invoice, db: Session) -> DuplicateCheckResult:
             "passed": True,
             "message": f"Invoice number '{invoice.invoice_number}' is unique. No duplicates found.",
         }   
+
 
 def run_validation_agent(db: Session, invoice: Invoice) -> ValidationAgentResult:
     logger.info(f"Validation Agent: starting checks for invoice {invoice.id}")
@@ -161,6 +165,7 @@ def run_validation_agent(db: Session, invoice: Invoice) -> ValidationAgentResult
         ),
     )
 
+
 def build_invoice_data_string(invoice):
     return (
         f"Invoice Number: {invoice.invoice_number or 'Not found'}\n"
@@ -172,6 +177,7 @@ def build_invoice_data_string(invoice):
         f"Currency: {invoice.currency or 'INR'}\n"
         f"Line Items Count: {len(invoice.line_items)}"
     )
+
 
 def build_validation_string(validation_result: ValidationAgentResult) -> str:
     checks = validation_result.get("checks", {})
@@ -201,6 +207,7 @@ def build_validation_string(validation_result: ValidationAgentResult) -> str:
     else:
         lines.append("No issues found. All checks passed.")
     return "\n".join(lines)
+
 
 def run_summary_agent(invoice: Invoice, validation_result: ValidationAgentResult) -> str | None:
     invoice_data_str = build_invoice_data_string(invoice)
@@ -251,6 +258,7 @@ def run_summary_agent(invoice: Invoice, validation_result: ValidationAgentResult
         logger.error(f"Summary Agent: LLM failed — using template fallback. Error: {e}")
         return fallback_report(invoice, validation_result)
     
+
 def fallback_report(invoice: Invoice, validation_result: ValidationAgentResult) -> str:
     """
     Template-based fallback report used when LLM API is unavailable.

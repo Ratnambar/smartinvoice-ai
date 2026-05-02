@@ -17,7 +17,7 @@ def root() -> RedirectResponse:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
-from app.models.invoice_model import User, Invoice  # ← must import models so Base knows about them
+from app.models.invoice_model import User, Invoice, Vendor  # ← must import models so Base knows about them
 
 def create_tables():
     Base.metadata.create_all(bind=engine)

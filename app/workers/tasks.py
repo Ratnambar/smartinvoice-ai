@@ -16,6 +16,7 @@ import time
 import json
 import re
 
+
 def _process_invoice_task(self: Task, invoice_id: int) -> str | None:
     db = SessionLocal()
     try:
@@ -137,8 +138,6 @@ def _process_invoice_task(self: Task, invoice_id: int) -> str | None:
                             )
             db.add(processing_log)
             db.commit()
-            # db.refresh(invoice)
-            # return invoice
         else:
             raise HTTPException(status_code=500, detail="The AI failed to generate a valid JSON summary.")
         # Agent validation code
@@ -175,11 +174,6 @@ def _process_invoice_task(self: Task, invoice_id: int) -> str | None:
         db.commit()
         logger.info(f"Task complete: invoice={invoice_id} status={invoice.status}")
         return anomaly_report
-        # db.refresh(invoice)
-
-    # return invoice
-
-
     except Exception as e:
         logger.error(f"Task failed: invoice={invoice_id} error={e}")
         try:
@@ -193,7 +187,6 @@ def _process_invoice_task(self: Task, invoice_id: int) -> str | None:
         raise self.retry(exc=e, countdown=60)
     finally:
         db.close()
-
 
 _task_factory = cast(
     Callable[..., Callable[[Callable[..., str | None]], Task]],

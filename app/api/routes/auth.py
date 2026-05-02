@@ -33,6 +33,7 @@ async def register(payload: UserCreate, db: Annotated[Session, Depends(get_db)])
     db.refresh(new_user)
     return new_user
 
+
 @router.post("/token", response_model=TokenResponse, summary="OAuth2 login (token endpoint)")
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
@@ -50,6 +51,7 @@ async def login_for_access_token(
         data={"sub": user.email}, expires_delta=access_token_expires
     )
     return TokenResponse(access_token=access_token, token_type="bearer")
+
 
 @router.get("/users/me")
 async def read_users_me(
