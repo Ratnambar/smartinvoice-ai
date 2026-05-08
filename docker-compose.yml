@@ -77,6 +77,8 @@ version: '3.8'
 services:
   web:
     image: smartinvoiceai:latest
+    env_file:
+      - .env
     build: .
     ports:
       - "8000:8000"
