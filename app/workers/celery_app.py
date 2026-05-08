@@ -2,8 +2,12 @@ import os
 import sys
 
 from celery import Celery
+from dotenv import load_dotenv
 
-_redis = os.environ.get("CELERY_BROKER_URL") or os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+load_dotenv()
+
+
+_redis = os.environ.get("CELERY_BROKER_URL") or os.environ.get("REDIS_URL", "aws_redis")
 _result = os.environ.get("CELERY_RESULT_BACKEND", _redis)
 
 celery_app = Celery(

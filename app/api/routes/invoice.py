@@ -92,7 +92,8 @@ async def upload_file(
 @limiter.limit("10/minute")
 async def process_invoice(
     db: Annotated[Session, Depends(get_db)],
-    invoice_id: int
+    invoice_id: int,
+    request: Request,
 ):
     invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
     if invoice is None:

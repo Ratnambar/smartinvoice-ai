@@ -1,30 +1,67 @@
 # from pydantic_settings import BaseSettings
 import os
+import psycopg2
+import boto3
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from huggingface_hub import InferenceClient
+
 from dotenv import load_dotenv
 
 _ = load_dotenv()
 from urllib.parse import quote_plus
 password = quote_plus("your_password_with_@")
 
+
+
+def get_auth_token():
+    auth_token = boto3.client('rds', region_name=aws_region).generate_db_auth_token(DBHostname=postgres_host, Port=postgres_port, DBUsername=postgres_user, Region=aws_region)
+    return auth_token
 class Base(DeclarativeBase):
     pass
 
+
 postgres_user = os.getenv('postgres_user')
-postgres_password = quote_plus(os.getenv("postgres_password", ""))
+postgres_password = quote_plus(os.getenv("postgres_password", get_auth_token()))
 postgres_host = os.getenv('postgres_host')
+postgres_port = os.getenv('postgres_port')
 postgres_database = os.getenv('postgres_database')
-redis_url = os.getenv('REDIS_URL', 'redis://redis:6379/0')
-# Connect to an existing database
-engine = create_engine(f"postgresql+psycopg2://{postgres_user}:{postgres_password}@{postgres_host}/{postgres_database}",
+aws_region = os.getenv('aws_region')
+redis_url = os.getenv('aws_redis', 'redis://redis:6379/0')
+
+
+# def get_auth_token():
+#     auth_token = boto3.client('rds', region_name=aws_region).generate_db_auth_token(DBHostname=postgres_host, Port=postgres_port, DBUsername=postgres_user, Region=aws_region)
+#     return auth_token
+
+# auth_token = get_auth_token()
+
+
+def get_connection():
+    """Connection creator — SQLAlchemy calls this for each new connection"""
+    token = get_auth_token()  # Fresh token every time a new connection is made
+    conn = psycopg2.connect(
+        host=postgres_host,
+        port=postgres_port,
+        database=postgres_database,
+        user=postgres_user,
+        password=token,
+        sslmode="require",
+    )
+    return conn
+
+
+engine = create_engine(
+    "postgresql+psycopg2://",   # dummy URL, overridden by creator
+    creator=get_connection,      # ← this is the key change
     pool_pre_ping=True,
     pool_size=10,
     max_overflow=20,
+    pool_recycle=600,            # recycle connections every 10 mins (token expires in 15)
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
 
 def get_db():
     db = SessionLocal()
