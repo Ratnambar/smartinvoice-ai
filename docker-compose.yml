@@ -71,9 +71,6 @@
 #   pgdata:
 #   invoice_uploads:
 
-
-version: '3.8'
-
 services:
   web:
     image: smartinvoiceai:latest
@@ -90,8 +87,6 @@ services:
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       # - AWS_S3_BUCKET_NAME=smartinvoiceai-test
       - AWS_REGION=${aws_region}
-    depends_on:
-      - celery_worker
     restart: always
 
   celery_worker:
@@ -99,7 +94,7 @@ services:
     build: .
     env_file:
       - .env
-    command: celery -A your_project_name worker --loglevel=info
+    command: celery -A app.workers.celery_app:celery_app worker --loglevel=info
     environment:
       - DATABASE_URL=postgresql://${postgres_user}@${postgres_host}:${postgres_port}/${postgres_database}
       - REDIS_URL=${aws_redis}
@@ -114,7 +109,7 @@ services:
     build: .
     env_file:
       - .env
-    command: celery -A smartinvoice-ai beat --loglevel=info
+    command: celery -A app.workers.celery_app:celery_app beat --loglevel=info
     environment:
       - DATABASE_URL=postgresql://${postgres_user}@${postgres_host}:${postgres_port}/${postgres_database}
       - REDIS_URL=${aws_redis}
