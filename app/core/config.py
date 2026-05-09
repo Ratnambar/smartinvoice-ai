@@ -30,7 +30,13 @@ redis_url = os.getenv('aws_redis', 'redis://redis:6379/0')
 
 
 def get_auth_token():
-    auth_token = boto3.client('rds', region_name=aws_region).generate_db_auth_token(DBHostname=postgres_host, Port=postgres_port, DBUsername=postgres_user, Region=aws_region)
+    port = int(postgres_port or 5432)
+    auth_token = boto3.client("rds", region_name=aws_region).generate_db_auth_token(
+        DBHostname=postgres_host,
+        Port=port,
+        DBUsername=postgres_user,
+        Region=aws_region,
+    )
     return auth_token
 
 # auth_token = get_auth_token()
@@ -39,9 +45,10 @@ def get_auth_token():
 def get_connection():
     """Connection creator — SQLAlchemy calls this for each new connection"""
     token = get_auth_token()  # Fresh token every time a new connection is made
+    port = int(postgres_port or 5432)
     conn = psycopg2.connect(
         host=postgres_host,
-        port=postgres_port,
+        port=port,
         database=postgres_database,
         user=postgres_user,
         password=token,
