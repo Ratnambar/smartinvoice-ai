@@ -84,7 +84,7 @@ services:
       - "8000:8000"
     environment:
       - DEBUG=False
-      - DATABASE_URL=postgresql://${postgres_user}:${postgres_password}@db:5432/${postgres_database}
+      - DATABASE_URL=postgresql://${postgres_user}@${postgres_host}:${postgres_port}/${postgres_database}
       - REDIS_URL=${aws_redis}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
@@ -97,20 +97,28 @@ services:
   celery_worker:
     image: smartinvoiceai:latest
     build: .
+    env_file:
+      - .env
     command: celery -A your_project_name worker --loglevel=info
     environment:
-      - DATABASE_URL=postgresql://${postgres_user}:${postgres_password}@db:5432/${postgres_database}
+      - DATABASE_URL=postgresql://${postgres_user}@${postgres_host}:${postgres_port}/${postgres_database}
       - REDIS_URL=${aws_redis}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${aws_region}
       # - AWS_S3_BUCKET_NAME=smartinvoiceai-test
     restart: always
 
   celery_beat:
     image: smartinvoiceai:latest
     build: .
+    env_file:
+      - .env
     command: celery -A smartinvoice-ai beat --loglevel=info
     environment:
-      - DATABASE_URL=postgresql://${postgres_user}:${postgres_password}@db:5432/${postgres_database}
+      - DATABASE_URL=postgresql://${postgres_user}@${postgres_host}:${postgres_port}/${postgres_database}
       - REDIS_URL=${aws_redis}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${aws_region}
     restart: always

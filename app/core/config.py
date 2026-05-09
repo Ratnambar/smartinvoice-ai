@@ -10,19 +10,18 @@ from dotenv import load_dotenv
 
 _ = load_dotenv()
 from urllib.parse import quote_plus
-password = quote_plus("your_password_with_@")
+# password = quote_plus("your_password_with_@")
 
 
 
-def get_auth_token():
-    auth_token = boto3.client('rds', region_name=aws_region).generate_db_auth_token(DBHostname=postgres_host, Port=postgres_port, DBUsername=postgres_user, Region=aws_region)
-    return auth_token
+
+
 class Base(DeclarativeBase):
     pass
 
 
 postgres_user = os.getenv('postgres_user')
-postgres_password = quote_plus(os.getenv("postgres_password", get_auth_token()))
+# postgres_password = quote_plus(os.getenv("postgres_password", get_auth_token()))
 postgres_host = os.getenv('postgres_host')
 postgres_port = os.getenv('postgres_port')
 postgres_database = os.getenv('postgres_database')
@@ -30,9 +29,9 @@ aws_region = os.getenv('aws_region')
 redis_url = os.getenv('aws_redis', 'redis://redis:6379/0')
 
 
-# def get_auth_token():
-#     auth_token = boto3.client('rds', region_name=aws_region).generate_db_auth_token(DBHostname=postgres_host, Port=postgres_port, DBUsername=postgres_user, Region=aws_region)
-#     return auth_token
+def get_auth_token():
+    auth_token = boto3.client('rds', region_name=aws_region).generate_db_auth_token(DBHostname=postgres_host, Port=postgres_port, DBUsername=postgres_user, Region=aws_region)
+    return auth_token
 
 # auth_token = get_auth_token()
 
