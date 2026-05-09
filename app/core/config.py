@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 _ = load_dotenv()
 from urllib.parse import quote_plus
-# password = quote_plus("your_password_with_@")
+password = quote_plus("your_password_with_@")
 
 
 
@@ -21,7 +21,7 @@ class Base(DeclarativeBase):
 
 
 postgres_user = os.getenv('postgres_user')
-# postgres_password = quote_plus(os.getenv("postgres_password", get_auth_token()))
+postgres_password = quote_plus(os.getenv("postgres_password"))
 postgres_host = os.getenv('postgres_host')
 postgres_port = os.getenv('postgres_port')
 postgres_database = os.getenv('postgres_database')
@@ -44,14 +44,15 @@ def get_auth_token():
 
 def get_connection():
     """Connection creator — SQLAlchemy calls this for each new connection"""
-    token = get_auth_token()  # Fresh token every time a new connection is made
+    # token = get_auth_token()  # Fresh token every time a new connection is made
     port = int(postgres_port or 5432)
     conn = psycopg2.connect(
         host=postgres_host,
         port=port,
         database=postgres_database,
+        password=postgres_password,
         user=postgres_user,
-        password=token,
+        # password=token,
         sslmode="require",
     )
     return conn
