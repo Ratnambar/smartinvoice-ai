@@ -9,20 +9,15 @@ from huggingface_hub import InferenceClient
 from dotenv import load_dotenv
 
 _ = load_dotenv()
-from urllib.parse import quote_plus
-password = quote_plus("your_password_with_@")
-
-
-
-
 
 class Base(DeclarativeBase):
     pass
 
 
-postgres_user = os.getenv('postgres_user')
-postgres_password = quote_plus(os.getenv("postgres_password"))
-postgres_host = os.getenv('postgres_host')
+postgres_user = os.getenv("postgres_user")
+# Plain secret for psycopg2 (do not URL-encode). If unset/empty, IAM token is used in get_connection().
+postgres_password = os.getenv("postgres_password") or None
+postgres_host = os.getenv("postgres_host")
 postgres_port = os.getenv('postgres_port')
 postgres_database = os.getenv('postgres_database')
 aws_region = os.getenv('aws_region')
@@ -43,16 +38,15 @@ def get_auth_token():
 
 
 def get_connection():
-    """Connection creator — SQLAlchemy calls this for each new connection"""
-    # token = get_auth_token()  # Fresh token every time a new connection is made
+    """Connection creator — SQLAlchemy calls this for each new connection."""
     port = int(postgres_port or 5432)
+    password = postgres_password if postgres_password else get_auth_token()
     conn = psycopg2.connect(
         host=postgres_host,
         port=port,
         database=postgres_database,
-        password=postgres_password,
         user=postgres_user,
-        # password=token,
+        password=password,
         sslmode="require",
     )
     return conn
