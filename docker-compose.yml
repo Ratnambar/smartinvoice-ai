@@ -104,6 +104,20 @@ services:
       # - AWS_S3_BUCKET_NAME=smartinvoiceai-test
     restart: always
 
+  redis:                          # ← add this
+    image: redis:7-alpine
+    container_name: smartinvoice-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  
   celery_beat:
     image: smartinvoiceai:latest
     build: .
@@ -117,3 +131,5 @@ services:
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_REGION=${aws_region}
     restart: always
+  volumes:
+    redis_data:

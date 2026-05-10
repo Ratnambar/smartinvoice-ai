@@ -21,7 +21,7 @@ postgres_host = os.getenv("postgres_host")
 postgres_port = os.getenv('postgres_port')
 postgres_database = os.getenv('postgres_database')
 aws_region = os.getenv('aws_region')
-redis_url = os.getenv('aws_redis', 'redis://redis:6379/0')
+redis_url = os.getenv('REDIS_URL', 'redis://redis:6379/0')
 
 
 # def get_auth_token():
