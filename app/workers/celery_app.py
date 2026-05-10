@@ -7,8 +7,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-_redis = os.environ.get("CELERY_BROKER_URL") or os.environ.get("REDIS_URL", "redis://redis:6379/0")
-_result = os.environ.get("CELERY_RESULT_BACKEND", _redis)
+_redis = os.getenv("CELERY_BROKER_URL") or os.getenv('REDIS_URL', 'redis://redis:6379/0')
+_result = os.getenv("CELERY_RESULT_BACKEND", _redis)
 
 celery_app = Celery(
     "smartinvoice",
