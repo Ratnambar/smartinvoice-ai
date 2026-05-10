@@ -82,7 +82,7 @@ services:
     environment:
       - DEBUG=False
       - DATABASE_URL=postgresql://${db_user}:${postgres_password}@${postgres_host}:${postgres_port}/${postgres_database}
-      - REDIS_URL=${aws_redis}
+      - REDIS_URL=${REDIS_URL}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       # - AWS_S3_BUCKET_NAME=smartinvoiceai-test
@@ -97,7 +97,7 @@ services:
     command: celery -A app.workers.celery_app:celery_app worker --loglevel=info
     environment:
       - DATABASE_URL=postgresql://${db_user}:${postgres_password}@${postgres_host}:${postgres_port}/${postgres_database}
-      - REDIS_URL=${aws_redis}
+      - REDIS_URL=${REDIS_URL}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_REGION=${aws_region}
@@ -126,7 +126,7 @@ services:
     command: celery -A app.workers.celery_app:celery_app beat --loglevel=info
     environment:
       - DATABASE_URL=postgresql://${db_user}:${postgres_password}@${postgres_host}:${postgres_port}/${postgres_database}
-      - REDIS_URL=${aws_redis}
+      - REDIS_URL=${REDIS_URL}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_REGION=${aws_region}
