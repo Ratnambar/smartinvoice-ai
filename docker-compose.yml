@@ -80,7 +80,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./data/invoices:/data/invoices
+      - ./data/invoices:/app/data/invoices
     environment:
       - DEBUG=False
       - DATABASE_URL=postgresql://${db_user}:${postgres_password}@${postgres_host}:${postgres_port}/${postgres_database}
@@ -98,7 +98,7 @@ services:
       - .env
     command: celery -A app.workers.celery_app:celery_app worker --loglevel=info
     volumes:
-      - ./data/invoices:/data/invoices
+      - ./data/invoices:/app/data/invoices
     environment:
       - DATABASE_URL=postgresql://${db_user}:${postgres_password}@${postgres_host}:${postgres_port}/${postgres_database}
       - REDIS_URL=${REDIS_URL}
