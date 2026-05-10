@@ -14,7 +14,7 @@ class Base(DeclarativeBase):
     pass
 
 
-postgres_user = os.getenv("postgres_user")
+db_user = os.getenv("db_user")
 # Plain secret for psycopg2 (do not URL-encode). If unset/empty, IAM token is used in get_connection().
 postgres_password = os.getenv("postgres_password") or None
 postgres_host = os.getenv("postgres_host")
@@ -29,7 +29,7 @@ def get_auth_token():
     auth_token = boto3.client("rds", region_name=aws_region).generate_db_auth_token(
         DBHostname=postgres_host,
         Port=port,
-        DBUsername=postgres_user,
+        DBUsername=db_user,
         Region=aws_region,
     )
     return auth_token
@@ -45,7 +45,7 @@ def get_connection():
         host=postgres_host,
         port=port,
         database=postgres_database,
-        user=postgres_user,
+        user=db_user,
         password=password,
         sslmode="require",
     )

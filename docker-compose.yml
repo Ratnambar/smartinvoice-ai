@@ -81,7 +81,7 @@ services:
       - "8000:8000"
     environment:
       - DEBUG=False
-      - DATABASE_URL=postgresql://${postgres_user}:${postgres_password}@${postgres_host}:${postgres_port}/${postgres_database}
+      - DATABASE_URL=postgresql://${db_user}:${postgres_password}@${postgres_host}:${postgres_port}/${postgres_database}
       - REDIS_URL=${aws_redis}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
@@ -96,7 +96,7 @@ services:
       - .env
     command: celery -A app.workers.celery_app:celery_app worker --loglevel=info
     environment:
-      - DATABASE_URL=postgresql://${postgres_user}:${postgres_password}@${postgres_host}:${postgres_port}/${postgres_database}
+      - DATABASE_URL=postgresql://${db_user}:${postgres_password}@${postgres_host}:${postgres_port}/${postgres_database}
       - REDIS_URL=${aws_redis}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
@@ -111,7 +111,7 @@ services:
       - .env
     command: celery -A app.workers.celery_app:celery_app beat --loglevel=info
     environment:
-      - DATABASE_URL=postgresql://${postgres_user}:${postgres_password}@${postgres_host}:${postgres_port}/${postgres_database}
+      - DATABASE_URL=postgresql://${db_user}:${postgres_password}@${postgres_host}:${postgres_port}/${postgres_database}
       - REDIS_URL=${aws_redis}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
