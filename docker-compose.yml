@@ -131,5 +131,5 @@ services:
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_REGION=${aws_region}
     restart: always
-  volumes:
-    redis_data:
+volumes:
+  redis_data:
