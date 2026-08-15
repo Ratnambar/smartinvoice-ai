@@ -58,6 +58,7 @@ class Invoice(Base):
     line_items = relationship("InvoiceLineItem", back_populates="invoice", cascade="all, delete-orphan")
     logs             = relationship("ProcessingLog",   back_populates="invoice", cascade="all, delete-orphan")
     webhook_url = Column(String(500), nullable=True)
+    chunks = relationship("InvoiceChunk", back_populates="invoice", cascade="all, delete-orphan")
     
 class InvoiceLineItem(Base):
     __tablename__ = "invoice_line_items"

@@ -16,12 +16,16 @@ celery_app = Celery(
     backend=_result,
 )
 
+_task_always_eager = os.getenv("CELERY_TASK_ALWAYS_EAGER", "false").lower() in ("true", "1", "yes")
+
 celery_app.conf.update(
     task_serializer = "json",
     result_serializer = "json",
     accept_content = ["json"],
     timezone = "Asia/Kolkata",
     task_track_started = True,
+    task_always_eager = _task_always_eager,
+    task_eager_propagates = _task_always_eager,
 )
 
 # Prefork/billiard uses multiprocessing semaphores that often fail on Windows

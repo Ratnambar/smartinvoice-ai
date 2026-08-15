@@ -11,6 +11,7 @@ from loguru import logger
 MAX_FILE_SIZE_IN_BYTES = 10 * 1024 * 1024
 
 
+
 class VendorCheckResult(TypedDict):
     passed: bool
     vendor_id: int | None
@@ -56,12 +57,12 @@ def validate_file(db: Session, vendor_id: int, file: UploadFile):
 
 
 def validate_vendor(db: Session, vendor_name: str | None) -> VendorCheckResult:
-    if not vendor_name:
-        return {
-            "passed": False,
-            "vendor_id": None,
-            "message": "Vendor name is required."
-        }
+    # if not vendor_name:
+    #     return {
+    #         "passed": False,
+    #         "vendor_id": None,
+    #         "message": "Vendor name is required."
+    #     }
     vendor = db.query(Vendor).filter(Vendor.name.ilike(f"{vendor_name}")).first()
     if not vendor:
         return {
@@ -80,23 +81,58 @@ def validate_line_items(db: Session, invoice: Invoice) -> AmountCheckResult:
     stmt = select(  # pyright: ignore[reportUnknownVariableType]
         func.sum(InvoiceLineItem.total_price).label('total_price')  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
     ).where(InvoiceLineItem.invoice_id == invoice.id)
-    
-    result = db.execute(stmt).scalar()
-    total_price = float(result) if result is not None else 0.0
 
-    if invoice.total_amount - (invoice.tax_amount + total_price) == 0:
-        return {
-            "passed": True,
-            "message": f"Inline Items {total_price + invoice.tax_amount} is matching with Invoice {invoice.total_amount}. Verified."
-        }
-    else:
+    result = db.execute(stmt).scalar()
+    line_items_sum = float(result) if result is not None else 0.0
+    total_amount = float(invoice.total_amount or 0)
+    tax_amount = float(invoice.tax_amount or 0)
+    subtotal = float(invoice.subtotal or 0)
+    tolerance = 1.0
+
+    if not total_amount:
         return {
             "passed": False,
-            "message": f"MISMATCH: Line items sum to INR {(total_price + invoice.tax_amount):,.2f} "
-                       f"but invoice total states INR {invoice.total_amount:,.2f}. "
-                       f"Discrepancy of INR {abs(invoice.total_amount - (invoice.tax_amount + total_price)):,.2f}. "
-                       f"Do not process payment until resolved.",
+            "message": "Invoice total amount is missing — cannot verify line items.",
         }
+
+    if abs(line_items_sum - total_amount) <= tolerance:
+        return {
+            "passed": True,
+            "message": (
+                f"Line items sum to INR {line_items_sum:,.2f}, matching invoice total "
+                f"INR {total_amount:,.2f}. Verified."
+            ),
+        }
+
+    if tax_amount and abs(line_items_sum + tax_amount - total_amount) <= tolerance:
+        return {
+            "passed": True,
+            "message": (
+                f"Line items INR {line_items_sum:,.2f} plus tax INR {tax_amount:,.2f} "
+                f"match invoice total INR {total_amount:,.2f}. Verified."
+            ),
+        }
+
+    if subtotal and tax_amount and abs(subtotal + tax_amount - total_amount) <= tolerance:
+        return {
+            "passed": True,
+            "message": (
+                f"Subtotal INR {subtotal:,.2f} plus tax INR {tax_amount:,.2f} "
+                f"match invoice total INR {total_amount:,.2f}. Verified."
+            ),
+        }
+
+    expected_with_tax = line_items_sum + tax_amount
+    return {
+        "passed": False,
+        "message": (
+            f"MISMATCH: Line items sum to INR {line_items_sum:,.2f}"
+            + (f" (+ tax INR {tax_amount:,.2f} = INR {expected_with_tax:,.2f})" if tax_amount else "")
+            + f" but invoice total states INR {total_amount:,.2f}. "
+            f"Discrepancy of INR {abs(total_amount - line_items_sum):,.2f}. "
+            f"Do not process payment until resolved."
+        ),
+    }
 
 
 def check_duplicate(invoice: Invoice, db: Session) -> DuplicateCheckResult:
@@ -167,16 +203,17 @@ def run_validation_agent(db: Session, invoice: Invoice) -> ValidationAgentResult
 
 
 def build_invoice_data_string(invoice):
-    return (
-        f"Invoice Number: {invoice.invoice_number or 'Not found'}\n"
-        f"Vendor Name: {invoice.vendor_name or 'Not found'}\n"
-        f"Invoice Date: {invoice.invoice_date or 'Not found'}\n"
-        f"Subtotal: INR {invoice.subtotal:,.2f}" if invoice.subtotal else "Subtotal: Not found\n"
-        f"Tax Amount: INR {invoice.tax_amount:,.2f}" if invoice.tax_amount else "Tax Amount: Not found\n"
-        f"Total Amount: INR {invoice.total_amount:,.2f}" if invoice.total_amount else "Total Amount: Not found\n"
-        f"Currency: {invoice.currency or 'INR'}\n"
-        f"Line Items Count: {len(invoice.line_items)}"
-    )
+    lines = [
+        f"Invoice Number: {invoice.invoice_number or 'Not found'}",
+        f"Vendor Name: {invoice.vendor_name or 'Not found'}",
+        f"Invoice Date: {invoice.invoice_date or 'Not found'}",
+        f"Subtotal: INR {invoice.subtotal:,.2f}" if invoice.subtotal else "Subtotal: Not found",
+        f"Tax Amount: INR {invoice.tax_amount:,.2f}" if invoice.tax_amount else "Tax Amount: Not found",
+        f"Total Amount: INR {invoice.total_amount:,.2f}" if invoice.total_amount else "Total Amount: Not found",
+        f"Currency: {invoice.currency or 'INR'}",
+        f"Line Items Count: {len(invoice.line_items)}",
+    ]
+    return "\n".join(lines)
 
 
 def build_validation_string(validation_result: ValidationAgentResult) -> str:
@@ -248,10 +285,12 @@ def run_summary_agent(invoice: Invoice, validation_result: ValidationAgentResult
     try:
         response = get_ai_response(prompt)
         logger.info(f"Summary Agent: generating report for invoice {invoice.id}...")
-        if response: # pyright: ignore[reportOperatorIssue]
+        if response:
             response = response.strip()
-            logger.info(f"Summary Agent: report generated ({len(response)} chars)")
+            logger.info(f"Summary Agent: report generated {response})")
             return response
+        logger.warning("Summary Agent: empty LLM response — using template fallback.")
+        return fallback_report(invoice, validation_result)
     except Exception as e:
         # Fallback — template-based report if LLM fails
         # This ensures invoice.anomaly_report is never left empty

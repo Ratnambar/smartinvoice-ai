@@ -108,7 +108,6 @@ def _process_invoice_task(self: Task, invoice_id: int) -> str | None:
                 detail="The AI failed to generate a valid JSON summary.",
             )
         if clean_response:
-            line_items_len = 0
             data = json.loads(clean_response)  # pyright: ignore[reportAny]
             invoice.invoice_number = data['invoice_number']
             invoice.invoice_date = data['invoice_date']
@@ -117,7 +116,8 @@ def _process_invoice_task(self: Task, invoice_id: int) -> str | None:
             invoice.tax_amount = data['tax_amount']
             invoice.total_amount = data['total_amount']
             invoice.currency = data['currency']
-            for i, item in enumerate(data['line_items'], start=1):  # pyright: ignore[reportAny]
+            line_items = data.get('line_items') or []
+            for i, item in enumerate(line_items, start=1):  # pyright: ignore[reportAny]
                 new_line_item = InvoiceLineItem(
                     invoice_id=invoice.id,
                     description=item['description'],
@@ -134,7 +134,7 @@ def _process_invoice_task(self: Task, invoice_id: int) -> str | None:
                 status="SUCCESS" if data ["vendor_name"] else "PARTIAL",
                 message=(f"Extracted: vendor={data['vendor_name']} "
                             f"total={data['total_amount']} "
-                            f"line_items={line_items_len}"),
+                            f"line_items={len(line_items)}"),
                             )
             db.add(processing_log)
             db.commit()

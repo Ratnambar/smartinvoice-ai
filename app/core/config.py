@@ -1,4 +1,3 @@
-# from pydantic_settings import BaseSettings
 import os
 import psycopg2
 import boto3
@@ -14,7 +13,7 @@ class Base(DeclarativeBase):
     pass
 
 
-db_user = os.getenv("db_user")
+db_user = os.getenv("postgres_user") or os.getenv("db_user")
 # Plain secret for psycopg2 (do not URL-encode). If unset/empty, IAM token is used in get_connection().
 postgres_password = os.getenv("postgres_password") or None
 postgres_host = os.getenv("postgres_host")
@@ -22,6 +21,12 @@ postgres_port = os.getenv('postgres_port')
 postgres_database = os.getenv('postgres_database')
 aws_region = os.getenv('aws_region')
 redis_url = os.getenv('REDIS_URL', 'redis://redis:6379/0')
+
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+EMBEDDING_DIMENSION = int(os.getenv("EMBEDDING_DIMENSION", "384"))
+RAG_CHUNK_SIZE = int(os.getenv("RAG_CHUNK_SIZE", "500"))
+RAG_CHUNK_OVERLAP = int(os.getenv("RAG_CHUNK_OVERLAP", "80"))
+RAG_ENABLED = os.getenv("RAG_ENABLED", "true").lower() in ("true", "1", "yes")
 
 
 # def get_auth_token():
@@ -41,14 +46,20 @@ def get_connection():
     """Connection creator — SQLAlchemy calls this for each new connection."""
     port = int(postgres_port or 5432)
     # password = postgres_password if postgres_password else get_auth_token()
-    conn = psycopg2.connect(
-        host=postgres_host,
-        port=port,
-        database=postgres_database,
-        user=db_user,
-        password=postgres_password,
-        sslmode="require",
-    )
+    connect_kwargs: dict = {
+        "host": postgres_host,
+        "port": port,
+        "database": postgres_database,
+        "user": db_user,
+        "password": postgres_password,
+    }
+    sslmode = os.getenv("postgres_sslmode")
+    if sslmode is None:
+        # RDS requires SSL; local Postgres typically does not support it.
+        sslmode = "require" if postgres_host and "rds.amazonaws.com" in postgres_host else "disable"
+    if sslmode != "disable":
+        connect_kwargs["sslmode"] = sslmode
+    conn = psycopg2.connect(**connect_kwargs)
     return conn
 
 

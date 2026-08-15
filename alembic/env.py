@@ -1,32 +1,22 @@
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config, pool
 from alembic import context
 import os
 import sys
+from urllib.parse import quote_plus
 from dotenv import load_dotenv
 
 # ── Load .env ──────────────────────────────────────────
 load_dotenv()
-db_user = os.getenv("db_user")
-postgres_port = os.getenv('postgres_port')
-port = int(postgres_port or 5432)
-postgres_password = os.getenv("postgres_password") or None
-postgres_host = os.getenv("postgres_host")
-postgres_port = os.getenv('postgres_port')
-postgres_database = os.getenv('postgres_database')
 
 # ── Add your project root to path ──────────────────────
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # ── Import your Base and ALL models ────────────────────
-from app.core.config import Base
+from app.core.config import Base, engine
 from app.models.invoice_model import Vendor, Invoice, User  # import all your model files
-
+from app.models.chunk_model import InvoiceChunk
 # ── Alembic Config ─────────────────────────────────────
 config = context.config
-
-# Set DB URL from .env dynamically
-config.set_main_option("sqlalchemy.url", f"postgresql://{db_user}:{postgres_password}@{postgres_host}:{postgres_port}/{postgres_database}")
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -35,8 +25,20 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+def _database_url() -> str:
+    user = os.getenv("postgres_user") or os.getenv("db_user")
+    password = os.getenv("postgres_password") or ""
+    host = os.getenv("postgres_host")
+    port = os.getenv("postgres_port", "5432")
+    database = os.getenv("postgres_database")
+    return (
+        f"postgresql://{quote_plus(user)}:{quote_plus(password)}"
+        f"@{host}:{port}/{database}"
+    )
+
+
 def run_migrations_offline() -> None:
-    url = config.get_main_option("sqlalchemy.url")
+    url = _database_url()
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -48,12 +50,7 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
-    with connectable.connect() as connection:
+    with engine.connect() as connection:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
