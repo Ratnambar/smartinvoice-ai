@@ -12,11 +12,12 @@ from slowapi.util import get_remote_address
 import shutil
 from loguru import logger
 from app.helper.helper_func import validate_file
+from app.services.embedding_service import embed_invoice
 
 
 MAX_FILE_SIZE_IN_BYTES = 10 * 1024 * 1024
 PDF_MAGIC_BYTES = b'\x25\x50\x44\x46'
-UPLOAD_DIR = "/app/data/invoices"
+UPLOAD_DIR = os.getenv("UPLOAD_DIR", os.path.join("data", "invoices"))
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -51,7 +52,7 @@ async def upload_file(
 
     filename = result.filename
     assert filename is not None  # validate_file rejects missing filename
-    destination_path = UPLOAD_DIR + "/" + filename
+    destination_path = os.path.join(UPLOAD_DIR, filename)
     invoice = Invoice(
         uploaded_by=current_user.id,
         vendor_id=vendor_id,
@@ -63,10 +64,11 @@ async def upload_file(
     )
     db.add(invoice)
     db.commit()
+    embed_invoice(db, invoice)
     db.refresh(invoice)
 
     updated_filename = str(invoice.id) + "_" + filename
-    updated_file_path =  UPLOAD_DIR + "/" + updated_filename
+    updated_file_path = os.path.join(UPLOAD_DIR, updated_filename)
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     with open(updated_file_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
@@ -105,6 +107,9 @@ async def process_invoice(
         raise HTTPException(status_code=400, detail="Already being processed.")
     if invoice.status == InvoiceStatus.COMPLETED:
         raise HTTPException(status_code=400, detail="Already processed.")
+
+    invoice.status = InvoiceStatus.PROCESSING
+    db.commit()
 
     process_invoice_task.delay(invoice_id) # type: ignore
     db.commit()

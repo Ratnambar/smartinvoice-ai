@@ -14,7 +14,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # ── Import your Base and ALL models ────────────────────
 from app.core.config import Base, engine
 from app.models.invoice_model import Vendor, Invoice, User  # import all your model files
-from app.models.chunk_model import InvoiceChunk
 # ── Alembic Config ─────────────────────────────────────
 config = context.config
 

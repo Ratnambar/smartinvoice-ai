@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from sqlalchemy import Column, Integer, BigInteger, String, Float, ForeignKey, DateTime, Boolean, Enum, Text  # pyright: ignore[reportMissingImports]
+from sqlalchemy import Boolean, Column, Computed, DateTime, Enum, Float, ForeignKey, Integer, BigInteger, String, Text  # pyright: ignore[reportMissingImports]
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
+from pgvector.sqlalchemy import Vector
 import enum
 import datetime
-from app.core.config import Base
-from sqlalchemy.sql import func
+from app.core.config import Base, EMBEDDING_DIMENSION
 
 
 class InvoiceStatus(str, enum.Enum):
@@ -55,11 +56,17 @@ class Invoice(Base):
     processed_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     uploaded_by_user = relationship("User", back_populates="invoices")
     vendor = relationship("Vendor", back_populates="invoices")
+    payment_terms = Column(Integer, default=30)
+    due_date = Column(
+        DateTime(timezone=True),
+        Computed("invoice_due_from_text(invoice_date, payment_terms)"),
+        nullable=True,
+    )
     line_items = relationship("InvoiceLineItem", back_populates="invoice", cascade="all, delete-orphan")
     logs             = relationship("ProcessingLog",   back_populates="invoice", cascade="all, delete-orphan")
     webhook_url = Column(String(500), nullable=True)
-    chunks = relationship("InvoiceChunk", back_populates="invoice", cascade="all, delete-orphan")
-    
+    embedding = Column(Vector(EMBEDDING_DIMENSION), nullable=True)
+
 class InvoiceLineItem(Base):
     __tablename__ = "invoice_line_items"
 
