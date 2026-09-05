@@ -157,7 +157,7 @@ Results merged + deduplicated → top K invoices returned
 | Layer | Technology |
 |---|---|
 | **API Framework** | FastAPI |
-| **Database** | PostgreSQL (AWS RDS) |
+| **Database** | PostgreSQL |
 | **ORM** | SQLAlchemy |
 | **Migrations** | Alembic |
 | **Vector Store** | pgvector (PostgreSQL extension) |
@@ -167,8 +167,6 @@ Results merged + deduplicated → top K invoices returned
 | **Keyword Search** | BM25 (rank_bm25) |
 | **PDF Processing** | PyMuPDF / pdfplumber |
 | **Logging** | Loguru |
-| **Deployment** | AWS EC2 + RDS |
-| **Process Manager** | Uvicorn / Gunicorn |
 
 ---
 
